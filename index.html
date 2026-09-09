@@ -35,6 +35,7 @@
     overflow:hidden;
   }
   #stage{
+    position:relative;
     width:100%; height:100%;
     display:flex;
     flex-direction:row;
@@ -72,11 +73,11 @@
   }
   #result{
     color:#fff;
-    font-size:5.6vmin;
+    font-size:8.5vmin;
     font-weight:bold;
     min-height:1.2em;
     letter-spacing:0.2vmin;
-    text-shadow: 0 0 12px rgba(255,255,255,0.5), 2px 2px 2px #000;
+    text-shadow: 0 0 14px rgba(255,255,255,0.55), 2px 2px 2px #000;
     flex:0 0 auto;
   }
   #wheels{
@@ -140,12 +141,29 @@
     justify-content:center;
     z-index:10;
   }
+  #resetBtn{
+    position:absolute;
+    bottom:1.5vmin;
+    right:1.5vmin;
+    background:rgba(0,0,0,0.4);
+    border:1px solid var(--gold);
+    color:var(--gold);
+    border-radius:50%;
+    width:4.6vmin;
+    height:4.6vmin;
+    font-size:2vmin;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+  }
 </style>
 </head>
 <body>
 <div id="rotateWrap">
   <div id="stage">
     <button id="muteBtn">🔊</button>
+    <button id="resetBtn">⟲</button>
     <div class="titleCol">
       <h1>Plunder</h1>
       <div id="hint">Tap or flick to spin</div>
@@ -356,7 +374,7 @@
       ctx.stroke();
 
       // label — clock style: upright, all facing the same way
-      const labelR = r * 0.68;
+      const labelR = r * 0.83;
       ctx.save();
       ctx.translate(cx + Math.cos(mid)*labelR, cy + Math.sin(mid)*labelR);
       ctx.textAlign = 'center';
@@ -586,10 +604,10 @@
   const letSegments = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
   // weathered wood tone pairs: light oak for numbers, darker walnut for letters
-  const oakA   = { light:'#c9a877', mid:'#a8875a', dark:'#7c6340' };
-  const oakB   = { light:'#b89760', mid:'#96774a', dark:'#6b5432' };
-  const walnutA = { light:'#8a6b45', mid:'#6f5636', dark:'#4a3722' };
-  const walnutB = { light:'#7a5d3a', mid:'#5f492c', dark:'#3d2d1a' };
+  const oakA   = { light:'#b8ad9c', mid:'#9c8f7a', dark:'#7a6f5c' };
+  const oakB   = { light:'#a89d8c', mid:'#8c8070', dark:'#6b6152' };
+  const walnutA = { light:'#8f8577', mid:'#756b5d', dark:'#5a5245' };
+  const walnutB = { light:'#847a6c', mid:'#6a6153', dark:'#4f473c' };
 
   const wheelNum = new Wheel('wheelNum', numSegments, oakA, oakB);
   const wheelLet = new Wheel('wheelLet', letSegments, walnutA, walnutB);
@@ -613,6 +631,20 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // reset: stop any spin, snap both needles back to zero, clear result
+  const resetBtn = document.getElementById('resetBtn');
+  resetBtn.addEventListener('click', () => {
+    [wheelNum, wheelLet].forEach(w => {
+      w.vel = 0;
+      w.spinning = false;
+      w.angle = 0;
+      w.lastTickSeg = -1;
+      w.draw();
+    });
+    lastNum = null; lastLet = null;
+    resultEl.textContent = ' ';
   });
 
   // prevent pinch-zoom only; page scroll (fallback if content overflows) stays enabled
