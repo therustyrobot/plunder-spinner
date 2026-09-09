@@ -16,18 +16,22 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
   html,body{
-    margin:0; padding:0; height:100%; overflow:hidden;
+    margin:0; padding:0;
+    height:100vh; height:100dvh;
+    min-height:100vh; min-height:100dvh;
+    overflow-y:auto; overflow-x:hidden;
     background: radial-gradient(ellipse at center, #1a3a4a 0%, #0a1a22 100%);
     font-family:'Georgia', 'Palatino', serif;
-    touch-action:none;
+    overscroll-behavior:none;
   }
   #stage{
-    height:100%;
+    min-height:100vh; min-height:100dvh;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
     padding:8px;
+    touch-action:pan-y;
   }
   h1{
     color:var(--gold);
@@ -61,9 +65,10 @@
   }
   .wheelBox{
     position:relative;
-    width:min(70vw, 46vh);
-    max-width:380px;
+    width:min(64vw, 32vh);
+    max-width:320px;
     aspect-ratio:1/1;
+    touch-action:none;
   }
   canvas{
     width:100%;
@@ -149,11 +154,22 @@
   // ---------- Audio ----------
   let audioCtx = null;
   let muted = false;
+  let audioUnlocked = false;
   function ensureAudio(){
     if(!audioCtx){
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     if(audioCtx.state === 'suspended') audioCtx.resume();
+    if(!audioUnlocked){
+      // iOS Safari/WKWebView: must play a real buffer inside the gesture handler
+      // to unlock the context, resume() alone is not always enough.
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+      audioUnlocked = true;
+    }
   }
   function tick(){
     if(muted || !audioCtx) return;
@@ -452,8 +468,7 @@
     muteBtn.textContent = muted ? '🔇' : '🔊';
   });
 
-  // prevent double-tap zoom / scroll bounce
-  document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+  // prevent pinch-zoom only; page scroll (fallback if content overflows) stays enabled
   document.addEventListener('gesturestart', e => e.preventDefault());
 
 })();
