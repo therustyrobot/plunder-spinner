@@ -48,16 +48,21 @@
   }
   #wheels{
     display:flex;
-    flex-direction:row;
-    gap:2vw;
+    flex-direction:column;
+    gap:1.2vh;
     width:100%;
     justify-content:center;
     align-items:center;
   }
+  .wheelGroup{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
   .wheelBox{
     position:relative;
-    width:46vw;
-    max-width:340px;
+    width:min(70vw, 46vh);
+    max-width:380px;
     aspect-ratio:1/1;
   }
   canvas{
@@ -119,18 +124,20 @@
   <h1>Plunder</h1>
   <div id="result">&nbsp;</div>
   <div id="wheels">
-    <div class="wheelBox">
-      <div class="pointer"></div>
-      <canvas id="wheelNum"></canvas>
+    <div class="wheelGroup">
+      <div class="wheelBox">
+        <div class="pointer"></div>
+        <canvas id="wheelNum"></canvas>
+      </div>
+      <div class="label">Numbers</div>
     </div>
-    <div class="wheelBox">
-      <div class="pointer"></div>
-      <canvas id="wheelLet"></canvas>
+    <div class="wheelGroup">
+      <div class="wheelBox">
+        <div class="pointer"></div>
+        <canvas id="wheelLet"></canvas>
+      </div>
+      <div class="label">Letters</div>
     </div>
-  </div>
-  <div style="display:flex; width:100%; justify-content:center; gap:14vw;">
-    <div class="label">Numbers</div>
-    <div class="label">Letters</div>
   </div>
   <div id="hint">Tap or flick a wheel to spin</div>
 </div>
@@ -297,9 +304,9 @@
   };
 
   Wheel.prototype.spinRandom = function(){
-    // tap: random strong spin
+    // tap: fast burst spin
     const dir = 1;
-    const v = (8 + Math.random()*6) * dir;
+    const v = (16 + Math.random()*8) * dir;
     this.spinWithVelocity(v);
   };
 
@@ -311,10 +318,10 @@
     if(Math.abs(this.vel) > 0.001){
       this.angle += this.vel * dt;
       // friction
-      const friction = 0.6; // rad/s^2 decel factor (proportional)
+      const friction = 1.6; // rad/s^2 base decel; stronger at high speed, tapers out fast
       const sign = this.vel > 0 ? 1 : -1;
       let mag = Math.abs(this.vel);
-      mag -= friction * (1 + mag*0.15) * dt;
+      mag -= friction * (1 + mag*0.35) * dt;
       if(mag < 0) mag = 0;
       this.vel = sign * mag;
 
@@ -396,8 +403,8 @@
         this.spinRandom();
       } else {
         // amplify flick a bit so short flicks still feel good
-        const boosted = avg * 1.4;
-        this.spinWithVelocity(Math.max(-30, Math.min(30, boosted)));
+        const boosted = avg * 1.8;
+        this.spinWithVelocity(Math.max(-34, Math.min(34, boosted)));
       }
     };
 
