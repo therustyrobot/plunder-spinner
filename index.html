@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Plunder — Compass Spinners</title>
+<style>
+  :root{
+    --parchment:#e8d5a8;
+    --parchment-dark:#c9a96b;
+    --ink:#2b1a0e;
+    --wood:#3e2417;
+    --wood-dark:#241209;
+    --gold:#d4af37;
+    --red:#8b1e1e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(ellipse at center, #1a3a4a 0%, #0a1a22 100%);
+    font-family:'Georgia', 'Palatino', serif;
+    touch-action:none;
+  }
+  #stage{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:8px;
+  }
+  h1{
+    color:var(--gold);
+    font-size:clamp(18px, 6vw, 28px);
+    letter-spacing:4px;
+    text-transform:uppercase;
+    margin:2px 0 6px 0;
+    text-shadow: 0 0 10px rgba(212,175,55,0.6), 2px 2px 0 #000;
+  }
+  #result{
+    color:#fff;
+    font-size:clamp(22px, 8vw, 34px);
+    font-weight:bold;
+    min-height:1.4em;
+    letter-spacing:2px;
+    text-shadow: 0 0 12px rgba(255,255,255,0.5), 2px 2px 2px #000;
+    margin-bottom:6px;
+  }
+  #wheels{
+    display:flex;
+    flex-direction:row;
+    gap:2vw;
+    width:100%;
+    justify-content:center;
+    align-items:center;
+  }
+  .wheelBox{
+    position:relative;
+    width:46vw;
+    max-width:340px;
+    aspect-ratio:1/1;
+  }
+  canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    border-radius:50%;
+    cursor:pointer;
+  }
+  .pointer{
+    position:absolute;
+    top:-14px;
+    left:50%;
+    transform:translateX(-50%);
+    width:0; height:0;
+    border-left:12px solid transparent;
+    border-right:12px solid transparent;
+    border-top:22px solid var(--gold);
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.6));
+    z-index:5;
+  }
+  .label{
+    text-align:center;
+    color:var(--parchment);
+    font-size:clamp(11px,3.2vw,15px);
+    letter-spacing:2px;
+    margin-top:6px;
+    text-transform:uppercase;
+    opacity:0.85;
+  }
+  #hint{
+    color:var(--parchment-dark);
+    font-size:clamp(10px,3vw,13px);
+    margin-top:10px;
+    opacity:0.7;
+    letter-spacing:1px;
+  }
+  #muteBtn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:rgba(0,0,0,0.4);
+    border:1px solid var(--gold);
+    color:var(--gold);
+    border-radius:50%;
+    width:38px;
+    height:38px;
+    font-size:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <button id="muteBtn">🔊</button>
+  <h1>Plunder</h1>
+  <div id="result">&nbsp;</div>
+  <div id="wheels">
+    <div class="wheelBox">
+      <div class="pointer"></div>
+      <canvas id="wheelNum"></canvas>
+    </div>
+    <div class="wheelBox">
+      <div class="pointer"></div>
+      <canvas id="wheelLet"></canvas>
+    </div>
+  </div>
+  <div style="display:flex; width:100%; justify-content:center; gap:14vw;">
+    <div class="label">Numbers</div>
+    <div class="label">Letters</div>
+  </div>
+  <div id="hint">Tap or flick a wheel to spin</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Audio ----------
+  let audioCtx = null;
+  let muted = false;
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function tick(){
+    if(muted || !audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.value = 900 + Math.random()*80;
+    g.gain.value = 0.08;
+    o.connect(g); g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    g.gain.setValueAtTime(0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.start(t);
+    o.stop(t + 0.06);
+  }
+  function clunk(){
+    if(muted || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    // low thud
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(60, t + 0.3);
+    g.gain.setValueAtTime(0.4, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.4);
+    // bright chime on top
+    const o2 = audioCtx.createOscillator();
+    const g2 = audioCtx.createGain();
+    o2.type = 'triangle';
+    o2.frequency.value = 660;
+    g2.gain.setValueAtTime(0.15, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o2.connect(g2); g2.connect(audioCtx.destination);
+    o2.start(t); o2.stop(t + 0.5);
+  }
+
+  // ---------- Wheel class ----------
+  function Wheel(canvasId, segments, colorsA, colorsB){
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this.segments = segments; // array of labels
+    this.n = segments.length;
+    this.angle = 0;           // current rotation, radians
+    this.vel = 0;             // angular velocity rad/s
+    this.spinning = false;
+    this.lastTickSeg = -1;
+    this.colorsA = colorsA;
+    this.colorsB = colorsB;
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.draw();
+    this.bindInput();
+  }
+
+  Wheel.prototype.resize = function(){
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.size = rect.width;
+    this.draw();
+  };
+
+  Wheel.prototype.draw = function(){
+    const ctx = this.ctx;
+    const s = this.size;
+    const r = s/2;
+    const cx = r, cy = r;
+    ctx.clearRect(0,0,s,s);
+
+    // outer wood rim
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx,cy,r-2,0,Math.PI*2);
+    ctx.fillStyle = '#3e2417';
+    ctx.fill();
+
+    ctx.translate(cx,cy);
+    ctx.rotate(this.angle);
+    ctx.translate(-cx,-cy);
+
+    const segAngle = (Math.PI*2)/this.n;
+    for(let i=0;i<this.n;i++){
+      const start = i*segAngle - Math.PI/2;
+      const end = start + segAngle;
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy, r-8, start, end);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? this.colorsA : this.colorsB;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // label
+      ctx.save();
+      ctx.translate(cx,cy);
+      ctx.rotate(start + segAngle/2);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#2b1a0e';
+      ctx.font = 'bold ' + Math.max(11, r*0.13) + 'px Georgia, serif';
+      ctx.fillText(this.segments[i], r-16, 0);
+      ctx.restore();
+    }
+
+    // hub
+    ctx.restore(); // undo rotation
+    ctx.beginPath();
+    ctx.arc(cx,cy, r*0.14, 0, Math.PI*2);
+    ctx.fillStyle = '#d4af37';
+    ctx.fill();
+    ctx.strokeStyle = '#241209';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // rim ring
+    ctx.beginPath();
+    ctx.arc(cx,cy, r-2, 0, Math.PI*2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#241209';
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  Wheel.prototype.currentIndexAtPointer = function(){
+    // pointer is at top (angle -PI/2 in unrotated frame)
+    const segAngle = (Math.PI*2)/this.n;
+    let a = (-Math.PI/2 - this.angle) % (Math.PI*2);
+    a = ((a % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+    let idx = Math.floor(a/segAngle);
+    idx = ((idx % this.n) + this.n) % this.n;
+    return idx;
+  };
+
+  Wheel.prototype.spinWithVelocity = function(v){
+    ensureAudio();
+    if(this.spinning && Math.abs(this.vel) > Math.abs(v)) return;
+    this.vel = v;
+    this.spinning = true;
+    if(!this._raf) this._raf = requestAnimationFrame((t)=>this.step(t));
+  };
+
+  Wheel.prototype.spinRandom = function(){
+    // tap: random strong spin
+    const dir = 1;
+    const v = (8 + Math.random()*6) * dir;
+    this.spinWithVelocity(v);
+  };
+
+  Wheel.prototype.step = function(now){
+    if(this._lastT === undefined) this._lastT = now;
+    const dt = Math.min(0.05, (now - this._lastT)/1000);
+    this._lastT = now;
+
+    if(Math.abs(this.vel) > 0.001){
+      this.angle += this.vel * dt;
+      // friction
+      const friction = 0.6; // rad/s^2 decel factor (proportional)
+      const sign = this.vel > 0 ? 1 : -1;
+      let mag = Math.abs(this.vel);
+      mag -= friction * (1 + mag*0.15) * dt;
+      if(mag < 0) mag = 0;
+      this.vel = sign * mag;
+
+      const idx = this.currentIndexAtPointer();
+      if(idx !== this.lastTickSeg){
+        this.lastTickSeg = idx;
+        tick();
+      }
+      this._raf = requestAnimationFrame((t)=>this.step(t));
+    } else {
+      this.vel = 0;
+      this.spinning = false;
+      this._raf = null;
+      this._lastT = undefined;
+      clunk();
+      this.onStop && this.onStop(this.segments[this.currentIndexAtPointer()]);
+    }
+    this.draw();
+  };
+
+  Wheel.prototype.bindInput = function(){
+    const el = this.canvas;
+    let dragging = false;
+    let lastAngle = 0;
+    let lastTime = 0;
+    let velSamples = [];
+    let startX=0, startY=0, moved=false;
+    const rectCenter = () => {
+      const r = el.getBoundingClientRect();
+      return {x:r.left+r.width/2, y:r.top+r.height/2};
+    };
+    const angleAt = (x,y) => {
+      const c = rectCenter();
+      return Math.atan2(y-c.y, x-c.x);
+    };
+
+    const down = (x,y) => {
+      ensureAudio();
+      dragging = true;
+      moved = false;
+      startX=x; startY=y;
+      lastAngle = angleAt(x,y);
+      lastTime = performance.now();
+      velSamples = [];
+      // stop momentum while dragging
+      this.vel = 0;
+    };
+    const move = (x,y) => {
+      if(!dragging) return;
+      if(Math.abs(x-startX) > 4 || Math.abs(y-startY) > 4) moved = true;
+      const now = performance.now();
+      const a = angleAt(x,y);
+      let d = a - lastAngle;
+      // normalize delta to [-PI,PI]
+      if(d > Math.PI) d -= Math.PI*2;
+      if(d < -Math.PI) d += Math.PI*2;
+      this.angle += d;
+      const dt = Math.max(1, now-lastTime);
+      velSamples.push({v: d/(dt/1000), t: now});
+      if(velSamples.length > 6) velSamples.shift();
+      lastAngle = a;
+      lastTime = now;
+      this.draw();
+    };
+    const up = () => {
+      if(!dragging) return;
+      dragging = false;
+      if(!moved){
+        // treat as tap
+        this.spinRandom();
+        return;
+      }
+      // compute average recent velocity for flick
+      let avg = 0;
+      if(velSamples.length){
+        avg = velSamples.reduce((s,o)=>s+o.v,0)/velSamples.length;
+      }
+      if(Math.abs(avg) < 0.5){
+        this.spinRandom();
+      } else {
+        // amplify flick a bit so short flicks still feel good
+        const boosted = avg * 1.4;
+        this.spinWithVelocity(Math.max(-30, Math.min(30, boosted)));
+      }
+    };
+
+    el.addEventListener('mousedown', e => down(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+    window.addEventListener('mouseup', up);
+
+    el.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      down(t.clientX, t.clientY);
+    }, {passive:true});
+    el.addEventListener('touchmove', e => {
+      const t = e.touches[0];
+      move(t.clientX, t.clientY);
+    }, {passive:true});
+    el.addEventListener('touchend', up);
+  };
+
+  // ---------- Setup ----------
+  const numSegments = [];
+  for(let i=1;i<=18;i++) numSegments.push(String(i));
+  const letSegments = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+  const wheelNum = new Wheel('wheelNum', numSegments, '#c9a96b', '#e8d5a8');
+  const wheelLet = new Wheel('wheelLet', letSegments, '#8b1e1e', '#a83232');
+
+  const resultEl = document.getElementById('result');
+  let lastNum = null, lastLet = null;
+  function updateResult(){
+    if(lastNum !== null && lastLet !== null){
+      resultEl.textContent = lastLet + ' – ' + lastNum;
+    } else if(lastNum !== null){
+      resultEl.textContent = lastNum;
+    } else if(lastLet !== null){
+      resultEl.textContent = lastLet;
+    }
+  }
+  wheelNum.onStop = (label) => { lastNum = label; updateResult(); };
+  wheelLet.onStop = (label) => { lastLet = label; updateResult(); };
+
+  // mute toggle
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // prevent double-tap zoom / scroll bounce
+  document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+})();
+</script>
+</body>
+</html>
