@@ -62,21 +62,27 @@
     text-orientation: mixed;
     text-shadow: 0 0 10px rgba(212,175,55,0.6), 2px 2px 0 #000;
   }
+  .wheelsCol{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100%;
+    gap:1vmin;
+  }
   #result{
     color:#fff;
     font-size:5.6vmin;
     font-weight:bold;
-    min-width:1.4em;
+    min-height:1.2em;
     letter-spacing:0.2vmin;
     text-shadow: 0 0 12px rgba(255,255,255,0.5), 2px 2px 2px #000;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
+    flex:0 0 auto;
   }
   #wheels{
     display:flex;
     flex-direction:row;
     gap:2.5vmin;
-    height:100%;
     justify-content:center;
     align-items:center;
   }
@@ -100,18 +106,6 @@
     display:block;
     border-radius:50%;
     cursor:pointer;
-  }
-  .pointer{
-    position:absolute;
-    top:-2vmin;
-    left:50%;
-    transform:translateX(-50%);
-    width:0; height:0;
-    border-left:1.6vmin solid transparent;
-    border-right:1.6vmin solid transparent;
-    border-top:2.8vmin solid var(--gold);
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.6));
-    z-index:5;
   }
   .label{
     text-align:center;
@@ -154,23 +148,23 @@
     <button id="muteBtn">🔊</button>
     <div class="titleCol">
       <h1>Plunder</h1>
-      <div id="result">&nbsp;</div>
       <div id="hint">Tap or flick to spin</div>
     </div>
-    <div id="wheels">
-      <div class="wheelGroup">
-        <div class="wheelBox">
-          <div class="pointer"></div>
-          <canvas id="wheelNum"></canvas>
+    <div class="wheelsCol">
+      <div id="result">&nbsp;</div>
+      <div id="wheels">
+        <div class="wheelGroup">
+          <div class="wheelBox">
+            <canvas id="wheelNum"></canvas>
+          </div>
+          <div class="label">Numbers</div>
         </div>
-        <div class="label">Numbers</div>
-      </div>
-      <div class="wheelGroup">
-        <div class="wheelBox">
-          <div class="pointer"></div>
-          <canvas id="wheelLet"></canvas>
+        <div class="wheelGroup">
+          <div class="wheelBox">
+            <canvas id="wheelLet"></canvas>
+          </div>
+          <div class="label">Letters</div>
         </div>
-        <div class="label">Letters</div>
       </div>
     </div>
   </div>
@@ -273,16 +267,12 @@
     const cx = r, cy = r;
     ctx.clearRect(0,0,s,s);
 
-    // outer wood rim
+    // outer wood rim (disc is fixed — it never rotates)
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx,cy,r-2,0,Math.PI*2);
     ctx.fillStyle = '#3e2417';
     ctx.fill();
-
-    ctx.translate(cx,cy);
-    ctx.rotate(this.angle);
-    ctx.translate(-cx,-cy);
 
     const segAngle = (Math.PI*2)/this.n;
     for(let i=0;i<this.n;i++){
@@ -298,7 +288,7 @@
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // label — clock style: upright, not rotated with the wedge
+      // label — clock style: upright, all facing the same way
       const mid = start + segAngle/2;
       const labelR = r * 0.68;
       ctx.save();
@@ -310,16 +300,7 @@
       ctx.fillText(this.segments[i], 0, 0);
       ctx.restore();
     }
-
-    // hub
-    ctx.restore(); // undo rotation
-    ctx.beginPath();
-    ctx.arc(cx,cy, r*0.14, 0, Math.PI*2);
-    ctx.fillStyle = '#d4af37';
-    ctx.fill();
-    ctx.strokeStyle = '#241209';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.restore();
 
     // rim ring
     ctx.beginPath();
@@ -328,13 +309,50 @@
     ctx.strokeStyle = '#241209';
     ctx.stroke();
 
+    // spinning arrow needle — this is what rotates, not the disc
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(this.angle);
+    const tipLen = r*0.86, headLen = r*0.24, headW = r*0.18, shaftW = r*0.055, tailLen = r*0.24;
+    ctx.beginPath();
+    ctx.moveTo(-shaftW/2, tailLen);
+    ctx.lineTo(shaftW/2, tailLen);
+    ctx.lineTo(shaftW/2, -(tipLen-headLen));
+    ctx.lineTo(headW/2, -(tipLen-headLen));
+    ctx.lineTo(0, -tipLen);
+    ctx.lineTo(-headW/2, -(tipLen-headLen));
+    ctx.lineTo(-shaftW/2, -(tipLen-headLen));
+    ctx.closePath();
+    ctx.fillStyle = '#d4af37';
+    ctx.strokeStyle = '#241209';
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+    // tail fin (compass-needle south end)
+    ctx.beginPath();
+    ctx.moveTo(-shaftW*1.8, tailLen);
+    ctx.lineTo(shaftW*1.8, tailLen);
+    ctx.lineTo(0, tailLen*1.9);
+    ctx.closePath();
+    ctx.fillStyle = '#8b1e1e';
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
+
+    // hub
+    ctx.beginPath();
+    ctx.arc(cx,cy, r*0.12, 0, Math.PI*2);
+    ctx.fillStyle = '#d4af37';
+    ctx.fill();
+    ctx.strokeStyle = '#241209';
+    ctx.lineWidth = 3;
+    ctx.stroke();
   };
 
   Wheel.prototype.currentIndexAtPointer = function(){
-    // pointer is at top (angle -PI/2 in unrotated frame)
+    // the needle tip is the pointer now; disc is fixed at angle 0
     const segAngle = (Math.PI*2)/this.n;
-    let a = (-Math.PI/2 - this.angle) % (Math.PI*2);
+    let a = this.angle % (Math.PI*2);
     a = ((a % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
     let idx = Math.floor(a/segAngle);
     idx = ((idx % this.n) + this.n) % this.n;
