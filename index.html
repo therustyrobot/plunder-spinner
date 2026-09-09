@@ -473,8 +473,10 @@
   Wheel.prototype.spinWithVelocity = function(v){
     ensureAudio();
     if(this.spinning && Math.abs(this.vel) > Math.abs(v)) return;
+    const wasSpinning = this.spinning;
     this.vel = v;
     this.spinning = true;
+    if(!wasSpinning && this.onSpinStart) this.onSpinStart();
     if(!this._raf) this._raf = requestAnimationFrame((t)=>this.step(t));
   };
 
@@ -625,6 +627,16 @@
   }
   wheelNum.onStop = (label) => { lastNum = label; updateResult(); };
   wheelLet.onStop = (label) => { lastLet = label; updateResult(); };
+
+  // starting a new spin auto-clears a finished result from the prior set
+  function clearResultIfComplete(){
+    if(lastNum !== null && lastLet !== null){
+      lastNum = null; lastLet = null;
+      resultEl.textContent = ' ';
+    }
+  }
+  wheelNum.onSpinStart = clearResultIfComplete;
+  wheelLet.onSpinStart = clearResultIfComplete;
 
   // mute toggle
   const muteBtn = document.getElementById('muteBtn');
