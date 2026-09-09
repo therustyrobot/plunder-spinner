@@ -257,7 +257,122 @@
     this.canvas.height = rect.height * dpr;
     this.ctx.setTransform(dpr,0,0,dpr,0,0);
     this.size = rect.width;
+    this.buildDisk(dpr);
     this.draw();
+  };
+
+  // Renders the static weathered-wood disc + labels once into an offscreen
+  // canvas. It never needs to be redrawn per animation frame since the
+  // disc itself no longer rotates (the arrow needle does).
+  Wheel.prototype.buildDisk = function(dpr){
+    const s = this.size;
+    const r = s/2;
+    const cx = r, cy = r;
+
+    const disk = document.createElement('canvas');
+    disk.width = this.canvas.width;
+    disk.height = this.canvas.height;
+    const ctx = disk.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.diskCanvas = disk;
+
+    // outer weathered plank rim
+    ctx.beginPath();
+    ctx.arc(cx,cy,r-2,0,Math.PI*2);
+    ctx.fillStyle = '#4a3421';
+    ctx.fill();
+
+    const segAngle = (Math.PI*2)/this.n;
+    for(let i=0;i<this.n;i++){
+      const start = i*segAngle - Math.PI/2;
+      const end = start + segAngle;
+      const mid = start + segAngle/2;
+      const base = i % 2 === 0 ? this.colorsA : this.colorsB;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy, r-8, start, end);
+      ctx.closePath();
+      ctx.clip();
+
+      // weathered wood base: radial gradient, lighter near hub, dulled at rim
+      const grad = ctx.createRadialGradient(cx,cy, r*0.1, cx,cy, r);
+      grad.addColorStop(0, base.light);
+      grad.addColorStop(0.7, base.mid);
+      grad.addColorStop(1, base.dark);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,s,s);
+
+      // wood grain: streaks running roughly radial, jittered
+      const grainCount = 6 + Math.floor(Math.random()*3);
+      for(let g=0; g<grainCount; g++){
+        const jitter = (Math.random()-0.5) * segAngle * 0.7;
+        const a = mid + jitter;
+        const r0 = r*(0.12 + Math.random()*0.15);
+        const r1 = r*(0.75 + Math.random()*0.22);
+        const wob = (Math.random()-0.5) * segAngle * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a)*r0, cy + Math.sin(a)*r0);
+        ctx.quadraticCurveTo(
+          cx + Math.cos(a+wob)*(r0+r1)/2, cy + Math.sin(a+wob)*(r0+r1)/2,
+          cx + Math.cos(a)*r1, cy + Math.sin(a)*r1
+        );
+        ctx.strokeStyle = Math.random() > 0.5
+          ? 'rgba(40,25,12,' + (0.15 + Math.random()*0.18) + ')'
+          : 'rgba(210,180,130,' + (0.10 + Math.random()*0.12) + ')';
+        ctx.lineWidth = Math.max(0.6, r*0.006*(1+Math.random()));
+        ctx.stroke();
+      }
+
+      // occasional knot
+      if(Math.random() < 0.35){
+        const ka = mid + (Math.random()-0.5)*segAngle*0.5;
+        const kr = r*(0.35 + Math.random()*0.35);
+        const kx = cx + Math.cos(ka)*kr, ky = cy + Math.sin(ka)*kr;
+        const knotR = r*(0.045 + Math.random()*0.03);
+        const kgrad = ctx.createRadialGradient(kx,ky,0, kx,ky,knotR*2.2);
+        kgrad.addColorStop(0, 'rgba(30,18,8,0.55)');
+        kgrad.addColorStop(0.5, 'rgba(30,18,8,0.25)');
+        kgrad.addColorStop(1, 'rgba(30,18,8,0)');
+        ctx.fillStyle = kgrad;
+        ctx.beginPath();
+        ctx.arc(kx,ky,knotR*2.2,0,Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(kx,ky,knotR*0.4,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(20,12,5,0.6)';
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // plank seam between segments
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.lineTo(cx + Math.cos(start)*(r-8), cy + Math.sin(start)*(r-8));
+      ctx.strokeStyle = 'rgba(25,15,6,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // label — clock style: upright, all facing the same way
+      const labelR = r * 0.68;
+      ctx.save();
+      ctx.translate(cx + Math.cos(mid)*labelR, cy + Math.sin(mid)*labelR);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(30,18,8,0.88)';
+      ctx.font = 'bold ' + Math.max(13, r*0.18) + 'px Georgia, serif';
+      ctx.fillText(this.segments[i], 0, 0);
+      ctx.restore();
+    }
+
+    // rim ring
+    ctx.beginPath();
+    ctx.arc(cx,cy, r-2, 0, Math.PI*2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#1f1309';
+    ctx.stroke();
   };
 
   Wheel.prototype.draw = function(){
@@ -267,85 +382,63 @@
     const cx = r, cy = r;
     ctx.clearRect(0,0,s,s);
 
-    // outer wood rim (disc is fixed — it never rotates)
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx,cy,r-2,0,Math.PI*2);
-    ctx.fillStyle = '#3e2417';
-    ctx.fill();
-
-    const segAngle = (Math.PI*2)/this.n;
-    for(let i=0;i<this.n;i++){
-      const start = i*segAngle - Math.PI/2;
-      const end = start + segAngle;
-      ctx.beginPath();
-      ctx.moveTo(cx,cy);
-      ctx.arc(cx,cy, r-8, start, end);
-      ctx.closePath();
-      ctx.fillStyle = i % 2 === 0 ? this.colorsA : this.colorsB;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // label — clock style: upright, all facing the same way
-      const mid = start + segAngle/2;
-      const labelR = r * 0.68;
+    // blit the cached weathered-wood disc 1:1 in device pixels
+    if(this.diskCanvas){
       ctx.save();
-      ctx.translate(cx + Math.cos(mid)*labelR, cy + Math.sin(mid)*labelR);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#2b1a0e';
-      ctx.font = 'bold ' + Math.max(13, r*0.17) + 'px Georgia, serif';
-      ctx.fillText(this.segments[i], 0, 0);
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.drawImage(this.diskCanvas, 0, 0);
       ctx.restore();
     }
-    ctx.restore();
 
-    // rim ring
-    ctx.beginPath();
-    ctx.arc(cx,cy, r-2, 0, Math.PI*2);
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#241209';
-    ctx.stroke();
-
-    // spinning arrow needle — this is what rotates, not the disc
+    // spinning arrow — balanced length both sides of the hub, one end a
+    // classic arrowhead, the other a classic feather/fletching tail
     ctx.save();
     ctx.translate(cx,cy);
     ctx.rotate(this.angle);
-    const tipLen = r*0.86, headLen = r*0.24, headW = r*0.18, shaftW = r*0.055, tailLen = r*0.24;
+    const halfLen = r*0.66;
+    const shaftW = r*0.035;
+    const headLen = r*0.20, headW = r*0.15;
+    const finLen = r*0.20, finW = r*0.17, finInset = r*0.11;
+
+    ctx.fillStyle = '#0a0a0a';
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 1;
+
+    // shaft
     ctx.beginPath();
-    ctx.moveTo(-shaftW/2, tailLen);
-    ctx.lineTo(shaftW/2, tailLen);
-    ctx.lineTo(shaftW/2, -(tipLen-headLen));
-    ctx.lineTo(headW/2, -(tipLen-headLen));
-    ctx.lineTo(0, -tipLen);
-    ctx.lineTo(-headW/2, -(tipLen-headLen));
-    ctx.lineTo(-shaftW/2, -(tipLen-headLen));
-    ctx.closePath();
-    ctx.fillStyle = '#d4af37';
-    ctx.strokeStyle = '#241209';
-    ctx.lineWidth = 2;
+    ctx.rect(-shaftW/2, -halfLen+headLen*0.55, shaftW, halfLen*2 - headLen*0.55 - finLen*0.55);
     ctx.fill();
     ctx.stroke();
-    // tail fin (compass-needle south end)
+
+    // arrowhead
     ctx.beginPath();
-    ctx.moveTo(-shaftW*1.8, tailLen);
-    ctx.lineTo(shaftW*1.8, tailLen);
-    ctx.lineTo(0, tailLen*1.9);
+    ctx.moveTo(0, -halfLen);
+    ctx.lineTo(headW/2, -halfLen+headLen);
+    ctx.lineTo(-headW/2, -halfLen+headLen);
     ctx.closePath();
-    ctx.fillStyle = '#8b1e1e';
+    ctx.fill();
+    ctx.stroke();
+
+    // fletching (single classic feather fan at the tail)
+    ctx.beginPath();
+    ctx.moveTo(0, halfLen-finLen);
+    ctx.lineTo(finW/2, halfLen);
+    ctx.lineTo(shaftW/2, halfLen-finInset);
+    ctx.lineTo(0, halfLen-finLen*0.35);
+    ctx.lineTo(-shaftW/2, halfLen-finInset);
+    ctx.lineTo(-finW/2, halfLen);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
     // hub
     ctx.beginPath();
-    ctx.arc(cx,cy, r*0.12, 0, Math.PI*2);
-    ctx.fillStyle = '#d4af37';
+    ctx.arc(cx,cy, r*0.1, 0, Math.PI*2);
+    ctx.fillStyle = '#0a0a0a';
     ctx.fill();
-    ctx.strokeStyle = '#241209';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   };
 
@@ -492,8 +585,14 @@
   for(let i=1;i<=18;i++) numSegments.push(String(i));
   const letSegments = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
-  const wheelNum = new Wheel('wheelNum', numSegments, '#c9a96b', '#e8d5a8');
-  const wheelLet = new Wheel('wheelLet', letSegments, '#8b1e1e', '#a83232');
+  // weathered wood tone pairs: light oak for numbers, darker walnut for letters
+  const oakA   = { light:'#c9a877', mid:'#a8875a', dark:'#7c6340' };
+  const oakB   = { light:'#b89760', mid:'#96774a', dark:'#6b5432' };
+  const walnutA = { light:'#8a6b45', mid:'#6f5636', dark:'#4a3722' };
+  const walnutB = { light:'#7a5d3a', mid:'#5f492c', dark:'#3d2d1a' };
+
+  const wheelNum = new Wheel('wheelNum', numSegments, oakA, oakB);
+  const wheelLet = new Wheel('wheelLet', letSegments, walnutA, walnutB);
 
   const resultEl = document.getElementById('result');
   let lastNum = null, lastLet = null;
